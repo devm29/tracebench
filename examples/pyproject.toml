@@ -4,14 +4,14 @@ version = "0.1.0"
 description = "Instrumented sample LLM apps and a demo traffic seeder for Tracebench"
 requires-python = ">=3.12"
 dependencies = [
-  "anthropic>=0.75",
-  "fastapi>=0.115",
-  "uvicorn[standard]>=0.32",
-  "httpx>=0.27",
-  "pydantic>=2.9",
-  "pydantic-settings>=2.6",
-  "opentelemetry-sdk>=1.28",
-  "opentelemetry-exporter-otlp-proto-http>=1.28",
+  "anthropic>=2.6",
+  "fastapi>=0.162",
+  "uvicorn[standard]>=0.54",
+  "httpx>=0.28.1",
+  "pydantic>=2.14",
+  "pydantic-settings>=2.16",
+  "opentelemetry-sdk>=1.45",
+  "opentelemetry-exporter-otlp-proto-http>=1.45",
 ]
 
 [build-system]

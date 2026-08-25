@@ -4,7 +4,7 @@ name: tracebench
 # put a reverse proxy with TLS in front of the api and web services to expose them.
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:24.8
+    image: clickhouse/clickhouse-server:26.8
     environment:
       CLICKHOUSE_USER: tracebench
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env}
