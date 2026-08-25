@@ -35,7 +35,7 @@ export function Toolbar({ title, children }: { title: ReactNode; children?: Reac
   return (
     <header className="material sticky top-0 z-30 flex h-13 items-center gap-2 border-b border-border/60 bg-background/72 px-4 backdrop-blur-xl backdrop-saturate-[1.8]">
       <SidebarTrigger className="-ml-1 size-8" aria-label="Toggle sidebar" />
-      <Separator orientation="vertical" className="mx-1 h-4!" />
+      <Separator orientation="vertical" className="mx-1 hidden h-4! sm:block" />
       <div
         className={cn("min-w-0 truncate text-[15px] font-semibold transition-opacity duration-150 ease-out", hideTitle && "opacity-0")}
         aria-hidden={hideTitle || undefined}

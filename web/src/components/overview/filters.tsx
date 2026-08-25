@@ -21,7 +21,7 @@ export function ServiceSelect({ value, onChange }: { value: string | undefined; 
   const facets = useFacets()
   return (
     <Select value={value ?? ALL} onValueChange={(next) => onChange(next === ALL ? undefined : next)}>
-      <SelectTrigger size="sm" className="h-8 min-w-40 rounded-lg text-[13px]" aria-label="Service">
+      <SelectTrigger size="sm" className="h-8 w-28 rounded-lg text-[13px] sm:w-auto sm:min-w-40" aria-label="Service">
         <SelectValue placeholder="All services" />
       </SelectTrigger>
       <SelectContent>

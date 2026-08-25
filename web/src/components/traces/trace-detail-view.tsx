@@ -73,6 +73,7 @@ export function TraceDetailView({ traceId }: { traceId: string }) {
             traceId={traceId}
             spanId={selected.input_messages.length ? selected.span_id : undefined}
             spanName={selected.input_messages.length ? selected.name : trace.data.root_name}
+            serviceName={selected.service_name}
           />
         ) : null}
       </Toolbar>

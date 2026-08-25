@@ -20,17 +20,28 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ApiError } from "@/lib/api/client"
 import { useDatasets, usePromoteTrace } from "@/lib/api/hooks"
+import { defaultDatasetFor } from "@/lib/default-dataset"
 
 const NEW = "__new__"
 const NAME_PATTERN = /^[a-z0-9][a-z0-9._-]{1,79}$/
 
-export function PromoteDialog({ traceId, spanId, spanName }: { traceId: string; spanId: string | undefined; spanName: string }) {
+export function PromoteDialog({
+  traceId,
+  spanId,
+  spanName,
+  serviceName,
+}: {
+  traceId: string
+  spanId: string | undefined
+  spanName: string
+  serviceName: string
+}) {
   const [open, setOpen] = useState(false)
   const datasets = useDatasets()
   const promote = usePromoteTrace(traceId)
   const [choice, setChoice] = useState<string>("")
   const [newName, setNewName] = useState("")
-  const selected = choice || datasets.data?.[0]?.name || NEW
+  const selected = choice || defaultDatasetFor(datasets.data, serviceName)?.name || NEW
   const name = selected === NEW ? newName.trim() : selected
   const nameError = selected === NEW && newName.length > 0 && !NAME_PATTERN.test(newName.trim())
     ? "Use 2–80 lowercase letters, numbers, dots, dashes or underscores."
