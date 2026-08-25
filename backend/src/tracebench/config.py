@@ -2,7 +2,7 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -68,6 +68,15 @@ class Settings(BaseSettings):
             "Empty disables server-side execution, except in development where loopback hosts are allowed."
         ),
     )
+
+    @field_validator("api_token", "ingest_token", "anthropic_api_key", mode="before")
+    @classmethod
+    def _blank_secret_is_unset(cls, value: object) -> object:
+        # docker-compose passes unset variables through as "", which must not switch auth on
+        # with a token no client can present.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache
