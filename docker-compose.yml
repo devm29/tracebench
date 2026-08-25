@@ -1,0 +1,103 @@
+name: tracebench
+
+# Credentials come from .env (copy .env.example). Every port is published on loopback only;
+# put a reverse proxy with TLS in front of the api and web services to expose them.
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_USER: tracebench
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env}
+      CLICKHOUSE_DB: tracebench
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "127.0.0.1:27105:8123"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      retries: 20
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tracebench
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: tracebench
+    ports:
+      - "127.0.0.1:5505:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracebench"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      TRACEBENCH_DATABASE_URL: postgresql+asyncpg://tracebench:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/tracebench
+      TRACEBENCH_CLICKHOUSE_HOST: clickhouse
+      TRACEBENCH_CLICKHOUSE_PORT: "8123"
+      TRACEBENCH_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env}
+      TRACEBENCH_CORS_ORIGINS: '["http://localhost:3105"]'
+      TRACEBENCH_API_TOKEN: ${TRACEBENCH_API_TOKEN:-}
+      TRACEBENCH_INGEST_TOKEN: ${TRACEBENCH_INGEST_TOKEN:-}
+      TRACEBENCH_EVAL_TARGET_ALLOWLIST: '["demo-app:6405"]'
+      TRACEBENCH_JUDGE_BACKEND: ${TRACEBENCH_JUDGE_BACKEND:-offline}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "127.0.0.1:8105:8105"
+    depends_on:
+      clickhouse: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+
+  demo-app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["uvicorn", "--factory", "demo_apps.server:create_app", "--host", "0.0.0.0", "--port", "6405"]
+    environment:
+      DEMO_PROVIDER: ${DEMO_PROVIDER:-mock}
+      DEMO_OTLP_ENDPOINT: http://api:8105/v1/traces
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "127.0.0.1:6405:6405"
+    healthcheck:
+      disable: true
+    depends_on:
+      api: { condition: service_healthy }
+
+  seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "demo_apps.seed", "--api-url", "http://api:8105"]
+    environment:
+      TRACEBENCH_API_TOKEN: ${TRACEBENCH_API_TOKEN:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+    profiles: ["seed"]
+    healthcheck:
+      disable: true
+    depends_on:
+      api: { condition: service_healthy }
+
+  web:
+    build:
+      context: web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8105
+    ports:
+      - "127.0.0.1:3105:3105"
+    depends_on:
+      - api
+
+volumes:
+  clickhouse-data:
+  postgres-data:

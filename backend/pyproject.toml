@@ -1,0 +1,72 @@
+[project]
+name = "tracebench"
+version = "0.1.0"
+description = "OpenTelemetry-native LLM observability and regression testing"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "asyncpg>=0.30",
+  "alembic>=1.14",
+  "clickhouse-connect[async]>=0.9",
+  "opentelemetry-proto>=1.28",
+  "opentelemetry-sdk>=1.28",
+  "opentelemetry-exporter-otlp-proto-http>=1.28",
+  "protobuf>=5.28",
+  "googleapis-common-protos>=1.63",
+  "httpx>=0.27",
+  "jsonschema>=4.23",
+  "typer>=0.13",
+  "rich>=13.9",
+  "structlog>=24.4",
+  "anthropic>=0.75",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+embeddings = ["fastembed>=0.4"]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "mypy>=1.13",
+  "ruff>=0.8",
+  "types-jsonschema",
+  "types-protobuf",
+]
+
+[project.scripts]
+tracebench = "tracebench.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tracebench"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["google.rpc.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = ["integration: requires ClickHouse and Postgres"]
