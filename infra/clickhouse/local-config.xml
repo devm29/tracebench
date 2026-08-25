@@ -1,0 +1,27 @@
+<clickhouse>
+    <logger>
+        <level>warning</level>
+        <console>false</console>
+        <log>{{LOCAL}}/clickhouse/log/server.log</log>
+        <errorlog>{{LOCAL}}/clickhouse/log/error.log</errorlog>
+    </logger>
+    <listen_host>127.0.0.1</listen_host>
+    <http_port>{{HTTP_PORT}}</http_port>
+    <path>{{LOCAL}}/clickhouse/data/</path>
+    <tmp_path>{{LOCAL}}/clickhouse/tmp/</tmp_path>
+    <user_files_path>{{LOCAL}}/clickhouse/user_files/</user_files_path>
+    <format_schema_path>{{LOCAL}}/clickhouse/format_schemas/</format_schema_path>
+    <mark_cache_size>268435456</mark_cache_size>
+    <max_server_memory_usage_to_ram_ratio>0.25</max_server_memory_usage_to_ram_ratio>
+    <users>
+        <tracebench>
+            <password>tracebench</password>
+            <networks><ip>::/0</ip></networks>
+            <profile>default</profile>
+            <quota>default</quota>
+            <access_management>1</access_management>
+        </tracebench>
+    </users>
+    <profiles><default/></profiles>
+    <quotas><default/></quotas>
+</clickhouse>
