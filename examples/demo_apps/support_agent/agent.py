@@ -47,7 +47,10 @@ class SupportAgent:
     async def run(self, conversation: list[dict[str, str]], session_id: str | None = None) -> AgentResult:
         session_id = session_id or uuid.uuid4().hex[:16]
         messages: list[MessageParam] = [
-            {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]} for m in conversation
+            {"role": "user", "content": m["content"]}
+            if m["role"] == "user"
+            else {"role": "assistant", "content": m["content"]}
+            for m in conversation
         ]
         with clocked_span(self._tracer, f"invoke_agent {AGENT_NAME}", self._clock, kind=SpanKind.SERVER) as root:
             root.set_attributes(
