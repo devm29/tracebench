@@ -7,7 +7,7 @@ WEB_PORT ?= 3105
 DEMO_PORT ?= 6405
 
 .DEFAULT_GOAL := help
-.PHONY: help install services services-stop migrate api web demo-app seed eval test test-unit lint typecheck format build ci clean reset-data
+.PHONY: help install services services-stop migrate api web demo-app seed eval test test-unit lint typecheck format build check clean reset-data
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -67,7 +67,7 @@ format: ## Auto-format Python
 build: ## Production build of the web app
 	cd web && pnpm build
 
-ci: lint typecheck test build ## Everything CI runs
+check: lint typecheck test build ## Lint, typecheck, test and build
 
 reset-data: ## Drop all spans, datasets and runs (keeps schema)
 	for t in spans trace_summaries span_rollup_1m tool_rollup_1h; do \

@@ -4,7 +4,7 @@
 
 **OpenTelemetry-native observability and regression testing for LLM and agent apps.**
 
-Send it OTLP spans. It shows each trace as a tree with token, cost and latency rollups, and it can turn any production trace into a regression case that CI replays on every build.
+Send it OTLP spans. It shows each trace as a tree with token, cost and latency rollups, and it can turn any production trace into a regression case that a command-line gate replays against the next build.
 
 <p>
   <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white">
@@ -18,7 +18,6 @@ Send it OTLP spans. It shows each trace as a tree with token, cost and latency r
   <img alt="TypeScript strict" src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white">
   <img alt="shadcn/ui" src="https://img.shields.io/badge/shadcn%2Fui-components-000000?logo=shadcnui&logoColor=white">
   <img alt="mypy strict" src="https://img.shields.io/badge/mypy-strict-2A6DB2">
-  <img alt="CI: GitHub Actions" src="https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-22C55E">
 </p>
 
@@ -26,7 +25,7 @@ Send it OTLP spans. It shows each trace as a tree with token, cost and latency r
   <a href="#quickstart">Quickstart</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#instrument-your-app">Instrument your app</a> ·
-  <a href="#gate-pull-requests-in-ci">CI gate</a> ·
+  <a href="#regression-gate-from-the-command-line">Regression gate</a> ·
   <a href="#api-overview">API</a> ·
   <a href="#engineering-decisions-and-trade-offs">Design notes</a>
 </p>
@@ -46,7 +45,7 @@ Send it OTLP spans. It shows each trace as a tree with token, cost and latency r
 LLM apps break quietly. A prompt edit, a model swap or a tool timeout rarely throws an exception. Instead, answers get shorter, a refund amount disappears, or the bill doubles. Two things are needed to catch that:
 
 1. **See what happened** in production: every model call, tool call and retrieval step, with its tokens, cost and latency. You also need this in a format your existing telemetry already speaks.
-2. **Prove it still works** before the next deploy: replay real conversations against the new build and fail the pull request if any of them got worse.
+2. **Prove it still works** before the next deploy: replay real conversations against the new build and fail the change if any of them got worse.
 
 Most teams buy one tool for each, and the two never share data. Tracebench does both from the same spans. It speaks plain OTLP and the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), so any OTel SDK or GenAI instrumentation can send it data without a vendor SDK. A trace you are looking at in the dashboard is one click away from being a test case.
 
@@ -63,7 +62,7 @@ Most teams buy one tool for each, and the two never share data. Tracebench does 
 | **Promote to dataset** | One click turns a trace's input and output into a golden case. Datasets are versioned: every edit creates a new revision, so any old version, and any eval run pinned to it, can be reproduced exactly. |
 | **Pluggable scorers** | Exact match, JSON-schema validity, embedding similarity (fastembed `bge-small`, with a hashing fallback) and an LLM judge (Claude, or a deterministic offline judge). All of them implement one `Scorer` protocol. |
 | **Run diff** | Side-by-side comparison of two runs. Each case is labeled regressed, fixed, unchanged, added or removed, with per-scorer score deltas and a word-level diff of the outputs. |
-| **CLI and GitHub Action** | `tracebench eval run` replays a dataset against your app, scores it, records the run and compares it with the baseline. It exits `0` when the gate passes, `1` on a regression and `2` on a setup error. The composite Action also posts a summary comment on the PR and updates it on later runs. |
+| **Regression gate CLI** | `tracebench eval run` replays a dataset against your app, scores it, records the run and compares it with the baseline. It exits `0` when the gate passes, `1` on a regression and `2` on a setup error, and can write a Markdown summary and a JSON result. |
 
 ## Screenshots
 
@@ -75,11 +74,11 @@ Most teams buy one tool for each, and the two never share data. Tracebench does 
 
 ![A failed lookup_order tool span with its arguments, timeout result and exception event](docs/screenshots/trace-tool-error.png)
 
-**Run diff.** A PR run that failed the gate against the nightly baseline, with regressions first, word-level diffs and score deltas.
+**Run diff.** A branch run that failed the gate against the nightly baseline, with regressions first, word-level diffs and score deltas.
 
-![Eval run that failed the CI gate, compared with the baseline: regressed cases with a word-level output diff and score deltas](docs/screenshots/eval-diff-light.png)
+![Eval run that failed the regression gate, compared with the baseline: regressed cases with a word-level output diff and score deltas](docs/screenshots/eval-diff-light.png)
 
-**Eval runs.** Every replay from CI or the dashboard, with its branch, pass rate and the baseline it was judged against.
+**Eval runs.** Every replay from the CLI or the dashboard, with its branch, pass rate and the baseline it was judged against.
 
 ![Eval runs list with branch, pass rate, case counts and baseline badges](docs/screenshots/eval-runs.png)
 
@@ -102,6 +101,13 @@ Most teams buy one tool for each, and the two never share data. Tracebench does 
 **Price versions.** Per-million-token rates for input, cached input, cache writes and output; spans are priced with the version in effect when they started.
 
 ![Versioned model price table with input, cached input, cache write and output rates](docs/screenshots/prices.png)
+
+**On a phone.** The overview and the trace waterfall reflow to a single column at 390 px.
+
+<p>
+  <img alt="Overview on a 390 px wide phone screen: filters in the toolbar above stacked metric tiles" src="docs/screenshots/overview-mobile.png" width="240">
+  <img alt="Trace detail on a 390 px wide phone screen" src="docs/screenshots/trace-detail-mobile.png" width="240">
+</p>
 
 ## Architecture
 
@@ -128,7 +134,7 @@ flowchart LR
     end
 
     WEB["Web UI<br/>Next.js 15 + shadcn/ui"]
-    CLI["tracebench CLI<br/>GitHub Action"]
+    CLI["tracebench CLI<br/>regression gate"]
     TGT["App under test<br/>HTTP endpoint"]
 
     A1 -- "OTLP/HTTP protobuf or JSON" --> ING
@@ -160,7 +166,7 @@ The backend packages map directly onto that diagram:
 | `datasets` | Extracts a replayable case from a trace. Versioned dataset items. |
 | `evals` | `Scorer` protocol and implementations, embedder and judge backends, the concurrent runner, run diff, gate policy and an SSRF-safe target policy. |
 | `api` | Routers, bearer-token auth, and error handlers that map domain errors to HTTP and OTLP status codes. |
-| `cli` | Typer app, regression orchestration, and Markdown and JSON reports for CI. |
+| `cli` | Typer app, regression orchestration, and Markdown and JSON reports. |
 
 ### Ingest path
 
@@ -198,13 +204,13 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant CI as GitHub Action
+    participant U as Developer or build script
     participant CLI as tracebench eval run
     participant API as Tracebench API
     participant App as App under test
     participant PG as PostgreSQL
 
-    CI->>CLI: dataset, target-url, gate policy
+    U->>CLI: dataset, target URL, gate policy
     CLI->>CLI: validate target, build scorers (fail fast, exit 2)
     CLI->>API: GET dataset by name, then its items at version N
     API->>PG: SELECT revisions visible in version N
@@ -222,8 +228,7 @@ sequenceDiagram
     opt set-baseline if-passed or always
         CLI->>API: POST /api/eval-runs/{id}/baseline
     end
-    CLI-->>CI: step summary, JSON result, exit 0 / 1 / 2
-    CI->>CI: create or update the PR comment
+    CLI-->>U: Markdown summary, JSON result, exit 0 / 1 / 2
 ```
 
 ### User flow
@@ -242,8 +247,8 @@ flowchart TD
     J --> K["Compare with baseline: regressed / fixed / unchanged"]
     K --> L{"Gate passes?"}
     L -- "yes, on main" --> M["Promote run to baseline"]
-    L -- "no" --> N["PR fails with a summary comment"]
-    N --> O["Fix prompt or code, push"]
+    L -- "no" --> N["Gate exits 1 with a summary of what regressed"]
+    N --> O["Fix prompt or code"]
     O --> J
     D -- "no" --> C
     G -- "no" --> E
@@ -340,9 +345,9 @@ flowchart LR
 | Span store | ClickHouse (`clickhouse-connect` async) | Columnar scans, compression and materialized rollups suit append-only, analytics-heavy span data. |
 | Metadata | PostgreSQL 16, SQLAlchemy 2.0 async, asyncpg, Alembic | Transactions, unique and partial indexes, and row locks for datasets, baselines and price versions. |
 | Evals | fastembed (`BAAI/bge-small-en-v1.5`), Anthropic SDK, jsonschema | Local embeddings with no API key. An optional LLM judge with an offline fallback. |
-| CLI and CI | Typer, Rich, composite GitHub Action | One binary for local runs and CI, with exit codes meant for gating. |
-| Web | Next.js 15 App Router, TypeScript (strict), shadcn/ui, Tailwind v4, Recharts, TanStack Query, Zod | Data-dense dashboard UI. Response contracts are validated with Zod against fixtures serialized from the Pydantic models. |
-| Quality | ruff, mypy `--strict`, pytest (unit + integration), ESLint, Vitest + Testing Library | Every check runs in CI on each push. |
+| CLI | Typer, Rich | One command for local runs and scripted gates, with exit codes meant for gating. |
+| Web | Next.js 15 App Router, TypeScript (strict), shadcn/ui, Tailwind v4, Recharts, TanStack Query, Zod, IBM Plex | Data-dense dashboard UI. Response contracts are validated with Zod against fixtures serialized from the Pydantic models. |
+| Quality | ruff, mypy `--strict`, pytest (unit + integration), ESLint, Vitest + Testing Library | `make check` runs all of them. |
 | Packaging | Docker Compose, plus a no-Docker local script | `docker compose up`, or local ClickHouse and Postgres binaries with state kept in `.local/`. |
 
 ## Engineering decisions and trade-offs
@@ -383,7 +388,7 @@ Each item revision is visible in versions `[valid_from, valid_to)`. Editing an i
 - A case that no scorer applies to fails as `unscored`. It never passes by default.
 - The CLI builds every scorer before making any network call. A bad JSON schema or a missing Anthropic key exits `2` (setup error) instead of `1` (regression).
 - Runs record which embedder produced their similarity scores. If the fastembed model could not load and the hashing fallback was used, the diff warns that the scores are not comparable.
-- The gate's verdict and policy are stored on the run, so the UI shows exactly what CI decided.
+- The gate's verdict and policy are stored on the run, so the UI shows exactly what the gate decided.
 </details>
 
 <details>
@@ -400,36 +405,38 @@ No Tracebench client library exists. The examples use the stock OTel SDK with Ge
 
 ## Quickstart
 
+### Docker Compose
+
+Needs only Docker. The stack runs ClickHouse 26.8, Postgres 16, the API (which applies migrations on start), the instrumented demo app and the web UI.
+
+```bash
+cp .env.example .env              # set CLICKHOUSE_PASSWORD and POSTGRES_PASSWORD
+docker compose up --build -d      # clickhouse, postgres, api, demo-app, web
+docker compose run --rm seed      # optional: a week of demo traffic, two golden datasets, eval runs
+```
+
+Then open http://localhost:3105 for the UI and http://localhost:8105/docs for the OpenAPI docs. The seed's eval runs use fastembed, which downloads the `bge-small` model (about 70 MB) the first time. Stop everything with `docker compose down`, or `docker compose down -v` to drop the data too.
+
+All ports are bound to `127.0.0.1`. Put a TLS reverse proxy in front of `api` and `web` before you expose them.
+
 ### Local, no Docker
 
-Requires Python 3.12+, Node 20+ with pnpm 9, and PostgreSQL 16+ binaries (`initdb`, `pg_ctl`). `make services` downloads a pinned, checksum-verified ClickHouse binary on first run.
+Requires Python 3.12, Node 22 with pnpm 9, and PostgreSQL 16+ binaries (`initdb`, `pg_ctl`). `make services` downloads a pinned, checksum-verified ClickHouse binary from the ClickHouse GitHub releases on first run and keeps all state in `.local/`.
 
 ```bash
 make install     # venv in backend/.venv, editable backend + examples, web deps
-make services    # ClickHouse on :27105 and Postgres on :5505, all state in .local/
+make services    # ClickHouse on :27105 and Postgres on :5505
 make migrate     # Alembic migrations
 
 make api         # API on http://localhost:8105   (OTLP endpoint: /v1/traces, docs: /docs)
 make web         # UI  on http://localhost:3105
 make demo-app    # instrumented demo apps on :6405 (the eval target)
 
-make seed        # a week of realistic traffic, two golden datasets, baseline + PR runs
+make seed        # a week of realistic traffic, two golden datasets, baseline + branch runs
 make eval        # run the regression gate against the demo app
 ```
 
-Stop everything with `make services-stop`. Run `make help` to list all targets.
-
-If your Postgres binaries are not in `/opt/homebrew/opt/postgresql@17/bin`, set `PG_BIN=/path/to/bin`.
-
-### Docker Compose
-
-```bash
-cp .env.example .env              # set CLICKHOUSE_PASSWORD and POSTGRES_PASSWORD
-docker compose up --build -d      # clickhouse, postgres, api (runs migrations), demo-app, web
-docker compose run --rm seed      # optional demo data
-```
-
-All ports are bound to `127.0.0.1`. Put a TLS reverse proxy in front of `api` and `web` before you expose them.
+Stop everything with `make services-stop`. Run `make help` to list all targets. If your Postgres binaries are not in `/opt/homebrew/opt/postgresql@17/bin`, set `PG_BIN=/path/to/bin`.
 
 ## Instrument your app
 
@@ -469,31 +476,9 @@ The `examples/` package has two complete, runnable patterns:
 
 Both run against a deterministic mock by default. Set `DEMO_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to call Claude for real. The seeder (`python -m demo_apps.seed`) runs the same instrumented code against a virtual clock to backfill a week of traffic. It also adds a synthetic RAG service (`docs-qa`: embed, retrieve, generate) on a second provider.
 
-## Gate pull requests in CI
+## Regression gate from the command line
 
-```yaml
-# .github/workflows/llm-regression.yml
-on: pull_request
-jobs:
-  regression:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # start your app so the runner can reach it, then:
-      - uses: <owner>/tracebench@main
-        with:
-          dataset: support-agent-golden
-          target-url: http://localhost:6405/support
-          api-url: ${{ vars.TRACEBENCH_API_URL }}
-          api-token: ${{ secrets.TRACEBENCH_API_TOKEN }}
-          ui-url: ${{ vars.TRACEBENCH_UI_URL }}
-          max-pass-rate-drop: "0.05"
-          set-baseline: ${{ github.ref == 'refs/heads/main' && 'if-passed' || 'never' }}
-```
-
-The Action outputs `passed`, `run-id` and `pass-rate`. It writes a Markdown summary to the job page and keeps one PR comment up to date, found by a hidden marker. Commenting is `continue-on-error`, so the read-only token on a fork PR cannot hide the verdict. This repository's own [`ci.yml`](.github/workflows/ci.yml) uses the Action to gate itself against the demo app.
-
-The same gate from a terminal:
+`tracebench eval run` replays every case of a dataset version against an HTTP endpoint, scores the answers, records the run and compares it with the dataset's baseline. Against the Compose demo app:
 
 ```text
 $ tracebench eval run support-agent-golden --target http://localhost:6405/support
@@ -526,6 +511,8 @@ regression gate passed
 
 Exit codes: `0` gate passed, `1` regression, `2` setup or infrastructure error.
 </details>
+
+`--summary-file` writes the comparison as Markdown and `--json-output` writes the verdict, run id and pass rate as JSON, so any script can act on the result. The repository root also has `action.yml`, a composite action definition that installs this CLI and runs the same command with the same options.
 
 ## Configuration
 
@@ -570,18 +557,20 @@ Interactive OpenAPI docs are at `http://localhost:8105/docs`.
 | `GET/POST /api/datasets/{id}/items` · `PATCH/DELETE …/items/{item_key}` | Versioned items. Reads accept `?version=`. |
 | `GET/POST /api/eval-runs` · `POST /api/eval-runs/execute` | List and record runs. Run server-side against an allowlisted target. |
 | `GET /api/eval-runs/{id}` · `…/results` · `GET /api/eval-runs/compare?base=&head=` | Run detail, case results and diff. |
-| `GET /api/eval-runs/baseline?dataset_id=` · `POST …/{id}/baseline` · `PUT …/{id}/gate` | Baseline management and the recorded CI verdict. |
+| `GET /api/eval-runs/baseline?dataset_id=` · `POST …/{id}/baseline` · `PUT …/{id}/gate` | Baseline management and the recorded gate verdict. |
 | `GET /api/prices/current` · `GET/POST /api/prices/versions` · `GET …/versions/{id}` | Model price versions. |
 
+Send a span by hand (OTLP JSON). Ids are hex, as the OTLP/JSON encoding requires:
+
 ```bash
-# send a span by hand (OTLP JSON)
+now=$(date +%s)
 curl -s localhost:8105/v1/traces -H 'content-type: application/json' -d '{
   "resourceSpans": [{
     "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "curl-demo"}}]},
     "scopeSpans": [{"spans": [{
       "traceId": "5b8efff798038103d269b633813fc60c", "spanId": "eee19b7ec3c1b174",
       "name": "chat claude-haiku-4-5", "kind": 3,
-      "startTimeUnixNano": "1760000000000000000", "endTimeUnixNano": "1760000000850000000",
+      "startTimeUnixNano": "'"$now"'000000000", "endTimeUnixNano": "'"$now"'850000000",
       "attributes": [
         {"key": "gen_ai.operation.name", "value": {"stringValue": "chat"}},
         {"key": "gen_ai.request.model", "value": {"stringValue": "claude-haiku-4-5"}},
@@ -593,6 +582,43 @@ curl -s localhost:8105/v1/traces -H 'content-type: application/json' -d '{
 }'
 ```
 
+These responses were captured from the Compose stack after `docker compose run --rm seed`. A fully accepted export returns `200` with an empty `ExportTraceServiceResponse`:
+
+```text
+HTTP 200
+{}
+```
+
+Within a second the batcher has flushed it, priced at the seeded 20% discount version (420 × $1 + 64 × $5 per million tokens, × 0.8):
+
+```bash
+curl -s 'localhost:8105/api/traces?range=1h&service=curl-demo&limit=1'
+```
+
+```json
+{"items":[{"trace_id":"5b8efff798038103d269b633813fc60c","root_name":"chat claude-haiku-4-5","service_name":"curl-demo",
+  "session_id":"","start_time":"2026-11-08T17:42:14.303064Z","end_time":"2026-11-08T17:42:15.153064Z","duration_ms":850.0,
+  "span_count":1,"error_count":0,"root_error":false,"llm_calls":1,"tool_calls":0,"input_tokens":420,"output_tokens":64,
+  "cost_usd":"0.000592000","services":["curl-demo"],"models":["claude-haiku-4-5"]}],"next_cursor":null}
+```
+
+Bad payloads get a `google.rpc.Status` body in the request's encoding, as OTLP/HTTP specifies:
+
+```text
+POST /v1/traces  (content-type: application/json, body "{not json")  -> 400
+{"code": 3, "message": "malformed OTLP JSON payload"}
+
+POST /v1/traces  (content-type: text/plain)                          -> 415
+{"code": 3, "message": "unsupported content type 'text/plain'; use application/x-protobuf or application/json"}
+```
+
+`GET /api/health` reports both stores, the batcher counters and the active price version:
+
+```json
+{"status":"ok","version":"0.1.0","clickhouse":true,"postgres":true,
+ "ingest":{"pending":0,"flushed_spans":4600,"flushed_batches":5,"failed_attempts":0,"dropped_spans":0},"price_version":2}
+```
+
 ## Testing
 
 ```bash
@@ -601,13 +627,12 @@ make typecheck   # mypy --strict on src, tests and examples; tsc --noEmit
 make test        # pytest (unit + integration) and Vitest
 make test-unit   # backend tests that need no database
 make build       # production Next.js build
-make ci          # all of the above
+make check       # all of the above
 ```
 
 - **Backend unit tests** cover OTLP decoding and its limits, semconv mapping, pricing, the batcher (including shutdown and cancellation), tree assembly, metrics, scorers, the runner and diff, the target policy, and CLI exit codes. Router tests go through ASGI transport and need no database. They cover status codes 400, 401, 413, 415 and 503 with `Retry-After`, as well as auth.
-- **Integration tests** run against live ClickHouse and Postgres. They cover ingest-to-query round trips, promotion, concurrent baseline flips and promotes, SSRF rejection and recovery of orphaned runs. They need `make services`. In CI they use service containers.
+- **Integration tests** run against live ClickHouse and Postgres. They cover ingest-to-query round trips, promotion, concurrent baseline flips and promotes, SSRF rejection and recovery of orphaned runs. They need `make services`, or any reachable ClickHouse and Postgres (see `backend/tests/integration/conftest.py` for the `TRACEBENCH_TEST_*` variables).
 - **Web tests** use Vitest with Testing Library for keyboard navigation in the waterfall. Zod contract tests run against JSON fixtures serialized from the backend's Pydantic models, so a schema drift fails the build.
-- **CI** ([`ci.yml`](.github/workflows/ci.yml)) runs three jobs: the backend checks, the web checks, and an end-to-end regression gate. The last job boots the API and demo app, seeds data and runs this repository's own Action against them.
 
 ## Project structure
 
@@ -641,7 +666,7 @@ tracebench/
 │   ├── components/         # waterfall, inspector, charts, heatmap, diff, shadcn/ui
 │   └── lib/                # typed API client, Zod schemas, formatting, word diff
 ├── scripts/local-services.sh  # ClickHouse + Postgres without Docker
-├── action.yml              # composite GitHub Action (regression gate)
+├── action.yml              # composite action definition that runs the CLI gate
 ├── docker-compose.yml
 └── Makefile
 ```
