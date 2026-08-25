@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-PYTHON ?= python3.13
+PYTHON ?= python3.12
 VENV := backend/.venv
 BIN := $(VENV)/bin
 API_PORT ?= 8105
