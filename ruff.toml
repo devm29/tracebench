@@ -1,0 +1,11 @@
+line-length = 120
+target-version = "py312"
+src = ["backend/src", "backend", "examples"]
+
+[lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "PTH", "ASYNC", "RUF", "TC"]
+ignore = ["B008", "TC001", "TC002", "TC003", "RUF012"]
+
+[lint.per-file-ignores]
+"backend/tests/**" = ["S101"]
+"backend/migrations/**" = ["N999"]
