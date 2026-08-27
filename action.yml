@@ -1,0 +1,153 @@
+name: Tracebench regression gate
+description: Replay a Tracebench golden dataset against your app, compare with the baseline run and fail the job on regressions.
+author: Tracebench
+branding:
+  icon: activity
+  color: blue
+
+inputs:
+  dataset:
+    description: Dataset name, e.g. support-agent-golden
+    required: true
+  target-url:
+    description: Endpoint of the app under test; receives each case input as a JSON POST
+    required: true
+  api-url:
+    description: Base URL of your Tracebench API
+    required: true
+  api-token:
+    description: Bearer token for the API when TRACEBENCH_API_TOKEN is set on the server (pass a secret)
+    required: false
+    default: ""
+  ui-url:
+    description: Base URL of the Tracebench web UI, used for links in the summary
+    required: false
+    default: ""
+  scorers:
+    description: Space-separated scorer overrides (exact_match, embedding_similarity:0.85, llm_judge:0.7, json_schema:@file)
+    required: false
+    default: ""
+  baseline:
+    description: "'auto' (the dataset baseline), 'none', or a run id"
+    required: false
+    default: auto
+  set-baseline:
+    description: "never | if-passed | always; use if-passed on your main branch"
+    required: false
+    default: never
+  min-pass-rate:
+    description: Fail when the pass rate is below this fraction (0-1)
+    required: false
+    default: ""
+  max-pass-rate-drop:
+    description: Fail when the pass rate drops more than this fraction (0-1) below the baseline
+    required: false
+    default: ""
+  allow-regressions:
+    description: Do not fail on individual regressed cases
+    required: false
+    default: "false"
+  comment-on-pr:
+    description: Post or update a summary comment on the pull request
+    required: false
+    default: "true"
+  github-token:
+    description: Token used to comment on the pull request
+    required: false
+    default: ${{ github.token }}
+  python-version:
+    description: Python used to run the CLI
+    required: false
+    default: "3.12"
+
+outputs:
+  passed:
+    description: "'true' when the gate passed"
+    value: ${{ steps.gate.outputs.passed }}
+  run-id:
+    description: Id of the recorded eval run
+    value: ${{ steps.gate.outputs.run-id }}
+  pass-rate:
+    description: Pass rate of this run (0-1)
+    value: ${{ steps.gate.outputs.pass-rate }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install the Tracebench CLI
+      shell: bash
+      run: python -m pip install --quiet "${{ github.action_path }}/backend"
+
+    - name: Run the regression gate
+      id: gate
+      shell: bash
+      # Inputs reach the script only through the environment, never through expression expansion
+      # inside it, so a crafted input cannot inject shell.
+      env:
+        TRACEBENCH_API_URL: ${{ inputs.api-url }}
+        TRACEBENCH_API_TOKEN: ${{ inputs.api-token }}
+        TRACEBENCH_UI_URL: ${{ inputs.ui-url }}
+        TRACEBENCH_EMBEDDINGS_BACKEND: hash
+        INPUT_DATASET: ${{ inputs.dataset }}
+        INPUT_TARGET_URL: ${{ inputs.target-url }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_SET_BASELINE: ${{ inputs.set-baseline }}
+        INPUT_MIN_PASS_RATE: ${{ inputs.min-pass-rate }}
+        INPUT_MAX_PASS_RATE_DROP: ${{ inputs.max-pass-rate-drop }}
+        INPUT_ALLOW_REGRESSIONS: ${{ inputs.allow-regressions }}
+        INPUT_SCORERS: ${{ inputs.scorers }}
+      run: |
+        set +e
+        summary="$RUNNER_TEMP/tracebench-summary.md"
+        result="$RUNNER_TEMP/tracebench-result.json"
+        args=(eval run "$INPUT_DATASET" --target "$INPUT_TARGET_URL"
+          --baseline "$INPUT_BASELINE" --set-baseline "$INPUT_SET_BASELINE"
+          --summary-file "$summary" --json-output "$result")
+        read -r -a scorers <<< "$INPUT_SCORERS"
+        for scorer in "${scorers[@]}"; do args+=(--scorer "$scorer"); done
+        if [ -n "$INPUT_MIN_PASS_RATE" ]; then args+=(--min-pass-rate "$INPUT_MIN_PASS_RATE"); fi
+        if [ -n "$INPUT_MAX_PASS_RATE_DROP" ]; then args+=(--max-pass-rate-drop "$INPUT_MAX_PASS_RATE_DROP"); fi
+        if [ "$INPUT_ALLOW_REGRESSIONS" = "true" ]; then args+=(--allow-regressions); fi
+        tracebench "${args[@]}"
+        code=$?
+        if [ -f "$summary" ]; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
+        if [ -f "$result" ]; then
+          python - "$result" >> "$GITHUB_OUTPUT" <<'PY'
+        import json, sys
+        result = json.load(open(sys.argv[1]))
+        print(f"passed={'true' if result['passed'] else 'false'}")
+        print(f"run-id={result['run']['id']}")
+        print(f"pass-rate={result['run']['summary']['pass_rate']}")
+        PY
+        fi
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+
+    - name: Comment on the pull request
+      if: ${{ inputs.comment-on-pr == 'true' && github.event_name == 'pull_request' && steps.gate.outputs.run-id != '' }}
+      # Fork PRs get a read-only token; a missing comment must not hide the gate's verdict.
+      continue-on-error: true
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        body="$RUNNER_TEMP/tracebench-summary.md"
+        marker="<!-- tracebench-regression -->"
+        existing=$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+          --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | tail -n 1)
+        if [ -n "$existing" ]; then
+          gh api --method PATCH "repos/$REPO/issues/comments/$existing" -F "body=@$body" > /dev/null
+        else
+          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" -F "body=@$body" > /dev/null
+        fi
+
+    - name: Enforce the gate
+      shell: bash
+      env:
+        EXIT_CODE: ${{ steps.gate.outputs.exit-code }}
+      run: exit "${EXIT_CODE:-2}"
