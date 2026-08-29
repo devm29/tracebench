@@ -1,0 +1,121 @@
+{
+  "base": {
+    "id": "07e6a057-dae4-4b98-afc0-5bd50587e957",
+    "dataset_id": "00000000-0000-0000-0000-000000000001",
+    "dataset_name": "d",
+    "dataset_version": 1,
+    "name": "main: nightly baseline",
+    "target_url": "http://t",
+    "status": "completed",
+    "scorers": [],
+    "git_sha": null,
+    "git_ref": null,
+    "is_baseline": true,
+    "summary": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "errored": 0,
+      "pass_rate": 1.0,
+      "mean_scores": {
+        "exact_match": 1.0
+      },
+      "latency_p50_ms": null,
+      "latency_p95_ms": null
+    },
+    "error": null,
+    "embedder": "fastembed:BAAI/bge-small-en-v1.5",
+    "gate": null,
+    "created_at": "2026-10-04T23:42:09.858511Z",
+    "started_at": null,
+    "finished_at": null
+  },
+  "head": {
+    "id": "c72df5f2-0f9d-4543-8b71-63102f95b585",
+    "dataset_id": "00000000-0000-0000-0000-000000000001",
+    "dataset_name": "d",
+    "dataset_version": 1,
+    "name": "PR #412",
+    "target_url": "http://t",
+    "status": "completed",
+    "scorers": [],
+    "git_sha": null,
+    "git_ref": null,
+    "is_baseline": false,
+    "summary": {
+      "total": 4,
+      "passed": 3,
+      "failed": 1,
+      "errored": 0,
+      "pass_rate": 0.75,
+      "mean_scores": {
+        "exact_match": 0.75
+      },
+      "latency_p50_ms": null,
+      "latency_p95_ms": null
+    },
+    "error": null,
+    "embedder": "hash-512",
+    "gate": {
+      "passed": false,
+      "reasons": [
+        "1 case(s) passed on the baseline and fail now"
+      ],
+      "policy": {
+        "fail_on_regression": true,
+        "min_pass_rate": null,
+        "max_pass_rate_drop": null
+      },
+      "baseline_run_id": "07e6a057-dae4-4b98-afc0-5bd50587e957"
+    },
+    "created_at": "2026-10-04T23:42:09.858528Z",
+    "started_at": null,
+    "finished_at": null
+  },
+  "pass_rate_delta": -0.25,
+  "mean_score_deltas": {
+    "exact_match": -0.25
+  },
+  "counts": {
+    "regressed": 1,
+    "fixed": 0,
+    "unchanged_pass": 0,
+    "unchanged_fail": 0,
+    "added": 0,
+    "removed": 0
+  },
+  "items": [
+    {
+      "item_key": "00000000-0000-0000-0000-000000000007",
+      "status": "regressed",
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Where is order 48100?"
+          }
+        ]
+      },
+      "expected_output": "It shipped yesterday.",
+      "base_output": "It shipped yesterday.",
+      "head_output": "I don't know.",
+      "base_passed": true,
+      "head_passed": false,
+      "base_error": null,
+      "head_error": null,
+      "score_deltas": [
+        {
+          "scorer": "exact_match",
+          "base": 1.0,
+          "head": 0.0,
+          "delta": -1.0
+        }
+      ],
+      "base_latency_ms": 812.5,
+      "head_latency_ms": 812.5
+    }
+  ],
+  "warnings": [
+    "embedding similarity was computed with fastembed:BAAI/bge-small-en-v1.5 on the base run and hash-512 on the head run, so its scores are not comparable"
+  ]
+}

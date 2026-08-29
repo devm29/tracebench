@@ -1,0 +1,238 @@
+{
+  "trace_id": "76bbaaf9500c1625593da6cde62f044c",
+  "root_name": "invoke_agent support-agent",
+  "service_name": "support-agent",
+  "session_id": "sess-1",
+  "start_time": "2026-10-04T23:42:09.856409Z",
+  "end_time": "2026-10-04T23:42:09.856498Z",
+  "duration_ms": 0.089,
+  "services": [
+    "support-agent"
+  ],
+  "rollup": {
+    "span_count": 3,
+    "llm_calls": 1,
+    "tool_calls": 1,
+    "error_count": 1,
+    "input_tokens": 1000,
+    "output_tokens": 100,
+    "cache_read_tokens": 400,
+    "cost_usd": "0.0042"
+  },
+  "models": [
+    {
+      "model": "claude-sonnet-5-5",
+      "provider": "anthropic",
+      "calls": 1,
+      "input_tokens": 1000,
+      "output_tokens": 100,
+      "cache_read_tokens": 400,
+      "cost_usd": "0.0042"
+    }
+  ],
+  "roots": [
+    {
+      "span_id": "ac19aa5dd6103fbf",
+      "parent_span_id": null,
+      "name": "invoke_agent support-agent",
+      "kind": "server",
+      "service_name": "support-agent",
+      "start_time": "2026-10-04T23:42:09.856409Z",
+      "end_time": "2026-10-04T23:42:09.856498Z",
+      "offset_ms": 0.0,
+      "duration_ms": 0.089,
+      "depth": 0,
+      "status": "unset",
+      "status_message": "",
+      "operation": "invoke_agent",
+      "provider": "",
+      "model": "",
+      "request_model": "",
+      "response_model": "",
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0
+      },
+      "cost_usd": "0",
+      "price_version": 0,
+      "tool": null,
+      "agent_name": "support-agent",
+      "session_id": "sess-1",
+      "system_instructions": "",
+      "input_messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "Where is order 48100?",
+              "name": null,
+              "id": null,
+              "arguments": null,
+              "response": null
+            }
+          ],
+          "finish_reason": null
+        }
+      ],
+      "output_messages": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "It shipped yesterday.",
+              "name": null,
+              "id": null,
+              "arguments": null,
+              "response": null
+            }
+          ],
+          "finish_reason": null
+        }
+      ],
+      "finish_reasons": [],
+      "error_type": "",
+      "attributes": {},
+      "resource_attributes": {
+        "telemetry.sdk.language": "python",
+        "telemetry.sdk.name": "opentelemetry",
+        "telemetry.sdk.version": "1.45.0",
+        "service.instance.id": "25980dcf-6ec6-486e-9fe5-0a28e0a25c7f",
+        "service.name": "support-agent"
+      },
+      "events": [],
+      "subtree": {
+        "span_count": 3,
+        "llm_calls": 1,
+        "tool_calls": 1,
+        "error_count": 1,
+        "input_tokens": 1000,
+        "output_tokens": 100,
+        "cache_read_tokens": 400,
+        "cost_usd": "0.0042"
+      },
+      "children": [
+        {
+          "span_id": "b6e7d0eaf586e147",
+          "parent_span_id": "ac19aa5dd6103fbf",
+          "name": "chat claude-sonnet-5-5",
+          "kind": "client",
+          "service_name": "support-agent",
+          "start_time": "2026-10-04T23:42:09.856452Z",
+          "end_time": "2026-10-04T23:42:09.856462Z",
+          "offset_ms": 0.043000000000000003,
+          "duration_ms": 0.01,
+          "depth": 1,
+          "status": "unset",
+          "status_message": "",
+          "operation": "chat",
+          "provider": "anthropic",
+          "model": "claude-sonnet-5-5",
+          "request_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "usage": {
+            "input_tokens": 1000,
+            "output_tokens": 100,
+            "cache_read_tokens": 400,
+            "cache_write_tokens": 0
+          },
+          "cost_usd": "0.0042",
+          "price_version": 1,
+          "tool": null,
+          "agent_name": "",
+          "session_id": "",
+          "system_instructions": "",
+          "input_messages": [],
+          "output_messages": [],
+          "finish_reasons": [],
+          "error_type": "",
+          "attributes": {},
+          "resource_attributes": {
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.45.0",
+            "service.instance.id": "25980dcf-6ec6-486e-9fe5-0a28e0a25c7f",
+            "service.name": "support-agent"
+          },
+          "events": [],
+          "subtree": {
+            "span_count": 1,
+            "llm_calls": 1,
+            "tool_calls": 0,
+            "error_count": 0,
+            "input_tokens": 1000,
+            "output_tokens": 100,
+            "cache_read_tokens": 400,
+            "cost_usd": "0.0042"
+          },
+          "children": []
+        },
+        {
+          "span_id": "462bd82218d72e9d",
+          "parent_span_id": "ac19aa5dd6103fbf",
+          "name": "execute_tool lookup_order",
+          "kind": "internal",
+          "service_name": "support-agent",
+          "start_time": "2026-10-04T23:42:09.856481Z",
+          "end_time": "2026-10-04T23:42:09.856492Z",
+          "offset_ms": 0.07200000000000001,
+          "duration_ms": 0.011,
+          "depth": 1,
+          "status": "error",
+          "status_message": "timeout",
+          "operation": "execute_tool",
+          "provider": "",
+          "model": "",
+          "request_model": "",
+          "response_model": "",
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0
+          },
+          "cost_usd": "0",
+          "price_version": 0,
+          "tool": {
+            "name": "lookup_order",
+            "call_id": "toolu_1",
+            "arguments": {
+              "order_id": "48100"
+            },
+            "result": null
+          },
+          "agent_name": "",
+          "session_id": "",
+          "system_instructions": "",
+          "input_messages": [],
+          "output_messages": [],
+          "finish_reasons": [],
+          "error_type": "TimeoutError",
+          "attributes": {},
+          "resource_attributes": {
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.45.0",
+            "service.instance.id": "25980dcf-6ec6-486e-9fe5-0a28e0a25c7f",
+            "service.name": "support-agent"
+          },
+          "events": [],
+          "subtree": {
+            "span_count": 1,
+            "llm_calls": 0,
+            "tool_calls": 1,
+            "error_count": 1,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cache_read_tokens": 0,
+            "cost_usd": "0"
+          },
+          "children": []
+        }
+      ]
+    }
+  ]
+}
