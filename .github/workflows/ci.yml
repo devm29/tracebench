@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  backend:
+    name: Backend (lint, types, tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tracebench
+          POSTGRES_PASSWORD: tracebench
+          POSTGRES_DB: tracebench_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tracebench" --health-interval 5s --health-retries 20
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: tracebench
+          CLICKHOUSE_PASSWORD: tracebench
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+        ports: ["8123:8123"]
+        options: >-
+          --health-cmd "wget -qO- http://127.0.0.1:8123/ping" --health-interval 5s --health-retries 20
+    env:
+      TRACEBENCH_TEST_DATABASE_URL: postgresql+asyncpg://tracebench:tracebench@localhost:5432/tracebench_test
+      TRACEBENCH_TEST_CLICKHOUSE_PORT: "8123"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            examples/pyproject.toml
+      - name: Install
+        run: pip install -e "./backend[dev]" -e ./examples
+      - name: Ruff
+        run: |
+          ruff check backend examples
+          ruff format --check backend examples
+      - name: Mypy (strict)
+        working-directory: backend
+        run: mypy src tests ../examples/demo_apps
+      - name: Pytest
+        working-directory: backend
+        run: pytest -q
+
+  web:
+    name: Web (lint, types, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  regression-gate:
+    name: LLM regression gate
+    runs-on: ubuntu-latest
+    needs: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tracebench
+          POSTGRES_PASSWORD: tracebench
+          POSTGRES_DB: tracebench
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tracebench" --health-interval 5s --health-retries 20
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: tracebench
+          CLICKHOUSE_PASSWORD: tracebench
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+        ports: ["8123:8123"]
+        options: >-
+          --health-cmd "wget -qO- http://127.0.0.1:8123/ping" --health-interval 5s --health-retries 20
+    env:
+      TRACEBENCH_DATABASE_URL: postgresql+asyncpg://tracebench:tracebench@localhost:5432/tracebench
+      TRACEBENCH_CLICKHOUSE_PORT: "8123"
+      TRACEBENCH_EMBEDDINGS_BACKEND: hash
+      DEMO_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            examples/pyproject.toml
+      - name: Install
+        run: pip install -e ./backend -e ./examples
+      - name: Start Tracebench and the demo app
+        run: |
+          (cd backend && alembic upgrade head)
+          (cd backend && uvicorn --factory tracebench.main:create_app --port 8105 > "$RUNNER_TEMP/api.log" 2>&1 &)
+          uvicorn --factory demo_apps.server:create_app --port 6405 > "$RUNNER_TEMP/demo.log" 2>&1 &
+          for _ in $(seq 1 60); do curl -sf localhost:8105/api/health && curl -sf localhost:6405/health && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/api.log"; exit 1
+      - name: Seed demo traffic, datasets and a baseline run
+        run: python -m demo_apps.seed --api-url http://localhost:8105 --scale 0.3
+      - name: Gate this commit
+        uses: ./
+        with:
+          dataset: support-agent-golden
+          target-url: http://localhost:6405/support
+          api-url: http://localhost:8105
+          set-baseline: ${{ github.ref == 'refs/heads/main' && 'if-passed' || 'never' }}
